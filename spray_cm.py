@@ -1,7 +1,7 @@
 import cv2
 
-original=cv2.imread('Img000751.tif', 1)
-im_gray = cv2.imread('Img000751.tif', cv2.IMREAD_GRAYSCALE)
+original=cv2.imread('/home/mglopes/Documents/GitHub/Spray-concentration-map/gamacorrected.png', 1)
+im_gray = cv2.imread('/home/mglopes/Documents/GitHub/Spray-concentration-map/gamacorrected.png', cv2.IMREAD_GRAYSCALE)
 im_color = cv2.applyColorMap(im_gray, cv2.COLORMAP_JET)
 cv2.imshow('Original image', im_gray)
 cv2.waitKey(0)
