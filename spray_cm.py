@@ -28,8 +28,8 @@ def subtract_images(image1_path, image2_path):
     cv2.destroyAllWindows()
 
 # Replace these paths with the paths to your images
-image1_path = "testes08_08\Frente\Img000012.tif"
-image2_path = "testes08_08\Frente\Img000000.tif"
+image1_path = "Img000226.tif"
+image2_path = "fundo_Subtracao_coflow.png"
 
 original=subtract_images(image1_path, image2_path)
 
