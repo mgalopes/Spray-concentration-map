@@ -15,7 +15,7 @@ def gamma_correction(image, gamma):
 
 if __name__ == "__main__":
     # Load the image using OpenCV
-    image_path = "/home/mglopes/Documents/GitHub/Spray-concentration-map/Img000751.tif"  # Replace with the actual image file path
+    image_path = "Img000009.tif"  # Replace with the actual image file path
     original_image = cv2.imread(image_path)
 
     # Set the gamma value (experiment with different values to get the desired effect)

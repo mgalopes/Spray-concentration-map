@@ -28,8 +28,8 @@ def subtract_images(image1_path, image2_path):
     cv2.destroyAllWindows()
 
 # Replace these paths with the paths to your images
-image1_path = "Img000226.tif"
-image2_path = "fundo_Subtracao_coflow.png"
+image1_path = "Img000009.tif"
+image2_path = "subtracao_fundo2.png"
 
 original=subtract_images(image1_path, image2_path)
 
@@ -46,7 +46,7 @@ cv2.waitKey(0)
 #Desenvolvimento da remoção do fundo
 
 # Applying thresholding technique
-_, alpha = cv2.threshold(im_gray, 30, 255, cv2.THRESH_BINARY)
+_, alpha = cv2.threshold(im_gray, 35, 255, cv2.THRESH_BINARY)
   
 # Using cv2.split() to split channels 
 # of coloured image
