@@ -1,0 +1,38 @@
+import cv2
+import numpy as np
+
+# Load the subtracted image
+subtracted_image = cv2.imread('subtracted_image.jpg')
+
+# Check if the image was loaded successfully
+if subtracted_image is None:
+    print("Error: Could not load 'subtracted_image.jpg'. Check the file path.")
+    exit(1)
+
+# Crop the image
+# Define the coordinates for cropping: (startX, startY, width, height)
+crop_x, crop_y, crop_width, crop_height = 240, 30,300, 670  # Example values
+cropped_image = subtracted_image[crop_y:crop_y + crop_height, crop_x:crop_x + crop_width]
+
+# Convert the cropped image to grayscale
+gray_cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
+
+# Create a colormap image based on the grayscale values
+# Normalize the intensity range to 0-255 (if necessary)
+normalized_image = cv2.normalize(gray_cropped_image, None, 10, 255, cv2.NORM_MINMAX)
+colormap_image = cv2.applyColorMap(normalized_image, cv2.COLORMAP_JET)
+
+# Display the cropped grayscale image
+cv2.imshow("Cropped Image (Grayscale)", gray_cropped_image)
+
+# Display the colormap image
+cv2.imshow("Colormap Image", colormap_image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+# Save the cropped grayscale and colormap images
+cv2.imwrite('cropped_image_grayscale.jpg', gray_cropped_image)
+cv2.imwrite('colormap_image.jpg', colormap_image)
+
+print("Cropped grayscale image saved as 'cropped_image_grayscale.jpg'.")
+print("Colormap image saved as 'colormap_image.jpg'.")
