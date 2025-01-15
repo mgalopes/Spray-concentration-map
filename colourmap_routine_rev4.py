@@ -88,7 +88,7 @@ def process_image(input_path, crop_coords, grayscale_output='cropped_image_grays
 # Example Usage:
 if __name__ == "__main__":
     # Subtract two images
-    subtract_images('etanol_div_25C_70bar.jpg', 'subtracao_fundo.png')
+    subtract_images('etanol_div_25C_70bar.jpg', 'subtracao_fundo2.png')
 
     # Process the subtracted image (crop and create colormap)
     process_image(
