@@ -114,7 +114,7 @@ def process_folder(input_folder, background_image_path, subtracted_folder, grays
 
 # Example Usage:
 if __name__ == "__main__":
-    input_folder = "C:/Users/garci/Desktop/Test1/selected_img_raw/gasolina_div_25C_70bar"  # Folder containing input images
+    input_folder = "C:/Users/garci/Desktop/Test1/selected_img_raw/agua_dest_div_25_70bar"  # Folder containing input images
     background_image_path = "subtracao_fundo.png"  # Path to the background image
     subtracted_folder = "output_images/subtracted"  # Folder to save subtracted images
     grayscale_folder = "output_images/grayscale"  # Folder to save grayscale images

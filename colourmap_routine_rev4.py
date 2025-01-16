@@ -1,17 +1,23 @@
 import cv2
 import numpy as np
+import os
 import sys
 
 
-def subtract_images(image1_path, image2_path, output_path='subtracted_image.jpg'):
+def subtract_images(image1_path, image2_path, output_folder):
     """
-    Subtracts two images and saves the result.
-    
+    Subtracts two images and saves the result in the output folder.
+
     Parameters:
         image1_path (str): Path to the first image.
         image2_path (str): Path to the second image.
-        output_path (str): Path to save the subtracted image.
+        output_folder (str): Path to the output folder.
     """
+    # Ensure the output folder exists
+    subtracted_folder = os.path.join(output_folder, "subtracted_images")
+    os.makedirs(subtracted_folder, exist_ok=True)
+    output_path = os.path.join(subtracted_folder, "subtracted_image.jpg")
+
     # Load the images
     image1 = cv2.imread(image1_path)
     image2 = cv2.imread(image2_path)
@@ -41,17 +47,24 @@ def subtract_images(image1_path, image2_path, output_path='subtracted_image.jpg'
     cv2.destroyAllWindows()
 
 
-def process_image(input_path, crop_coords, grayscale_output='cropped_image_grayscale.jpg',
-                  colormap_output='colormap_image.jpg'):
+def process_image(input_path, crop_coords, output_folder):
     """
-    Crops an image, converts it to grayscale, applies a colormap, and saves the results.
-    
+    Crops an image, converts it to grayscale, applies a colormap, and saves the results in the output folder.
+
     Parameters:
         input_path (str): Path to the input image.
         crop_coords (tuple): Cropping coordinates (x, y, width, height).
-        grayscale_output (str): Path to save the cropped grayscale image.
-        colormap_output (str): Path to save the colormap image.
+        output_folder (str): Path to the output folder.
     """
+    # Ensure the output folders exist
+    cropped_folder = os.path.join(output_folder, "cropped_images")
+    colormap_folder = os.path.join(output_folder, "colormap_images")
+    os.makedirs(cropped_folder, exist_ok=True)
+    os.makedirs(colormap_folder, exist_ok=True)
+
+    grayscale_output = os.path.join(cropped_folder, "cropped_image_grayscale.jpg")
+    colormap_output = os.path.join(colormap_folder, "colormap_image.jpg")
+
     # Load the image
     image = cv2.imread(input_path)
 
@@ -87,11 +100,20 @@ def process_image(input_path, crop_coords, grayscale_output='cropped_image_grays
 
 # Example Usage:
 if __name__ == "__main__":
+    # Define output folder for all results
+    output_folder = "output_images"
+
     # Subtract two images
-    subtract_images('etanol_div_25C_70bar.jpg', 'subtracao_fundo2.png')
+    subtract_images(
+        image1_path='input_images/etanol_conv_25C_70bar.jpg',
+        image2_path='subtracao_fundo2.png',
+        output_folder=output_folder
+    )
 
     # Process the subtracted image (crop and create colormap)
     process_image(
-        input_path='subtracted_image.jpg',
-        crop_coords=(240, 30, 300, 670)  # Example cropping coordinates
+        input_path=os.path.join(output_folder, "subtracted_images", "subtracted_image.jpg"),
+        crop_coords=(240, 30, 300, 670),  # Example cropping coordinates
+        output_folder=output_folder
     )
+
