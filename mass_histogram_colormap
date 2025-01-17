@@ -52,7 +52,7 @@ def generate_histograms_and_line_overlay(colormap_folder, line_height, output_hi
         # Plot the histogram with a transparent background
         plt.figure(figsize=(8, 4))
         plt.plot(pixel_positions, normalized_intensity, color='red', label='Normalized Intensity')
-        plt.title(f"Color Intensity Profile at Height {line_height}")
+        plt.title(f"Color Intensity Profile at Height {line_height/3.36}mm")
         plt.xlabel("Pixel Position")
         plt.ylabel("Normalized Intensity (0-1)")
         plt.ylim(0, 1)  # Fix y-axis range
@@ -76,7 +76,7 @@ def generate_histograms_and_line_overlay(colormap_folder, line_height, output_hi
 
 if __name__ == "__main__":
     colormap_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/input_for_histogram"  # Folder containing colormap images
-    line_height = 600  # Row in the image to analyze
+    line_height = 84  # Row in the image to analyze
     output_histogram_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_histograms"  # Folder to save histograms
     output_image_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_line_overlay"  # Folder to save images with line overlay
 
