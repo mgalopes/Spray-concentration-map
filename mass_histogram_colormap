@@ -25,8 +25,9 @@ def generate_histograms_and_line_overlay(colormap_folder, line_height, output_hi
             continue  # Skip non-image files
 
         colormap_image_path = os.path.join(colormap_folder, filename)
-        output_histogram_path = os.path.join(output_histogram_folder, f"histogram_{os.path.splitext(filename)[0]}.png")
-        output_image_path = os.path.join(output_image_folder, f"line_overlay_{os.path.splitext(filename)[0]}.png")
+        output_histogram_path = os.path.join(output_histogram_folder, f"histogram_{os.path.splitext(filename)[0]}_height_{line_height/3.36}.png")
+        output_image_path = os.path.join(output_image_folder, f"line_overlay_{os.path.splitext(filename)[0]}_height_{line_height/3.36}.png")
+
 
         # Load the colormap image
         colormap_image = cv2.imread(colormap_image_path)
@@ -76,7 +77,7 @@ def generate_histograms_and_line_overlay(colormap_folder, line_height, output_hi
 
 if __name__ == "__main__":
     colormap_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/input_for_histogram"  # Folder containing colormap images
-    line_height = 84  # Row in the image to analyze
+    line_height = 588 # Row in the image to analyze
     output_histogram_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_histograms"  # Folder to save histograms
     output_image_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_line_overlay"  # Folder to save images with line overlay
 
