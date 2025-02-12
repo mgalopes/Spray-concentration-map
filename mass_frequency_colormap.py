@@ -101,8 +101,11 @@ class ImageProcessor:
 
     def _remove_vertical_noise(self, image: np.ndarray) -> np.ndarray:
         """Remove vertical noise using morphological operations and median filtering"""
+        # Convert to uint8 for OpenCV operations
+        image_8bit = cv2.normalize(image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        
         # Median filtering to reduce noise
-        denoised = cv2.medianBlur(image, self.median_kernel_size)
+        denoised = cv2.medianBlur(image_8bit, self.median_kernel_size)
         
         # Morphological opening to remove vertical lines
         vertical_kernel = cv2.getStructuringElement(
@@ -110,12 +113,12 @@ class ImageProcessor:
         )
         opened = cv2.morphologyEx(denoised, cv2.MORPH_OPEN, vertical_kernel)
         
-        return opened
+        return opened.astype(np.float32) / 255.0  # Preserve float32 precision
 
     def _find_main_object(self, binary_image: np.ndarray) -> Optional[tuple]:
         """Identify the largest object and return its centroid and mask"""
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-            binary_image, connectivity=8
+            binary_image.astype(np.uint8), connectivity=8
         )
         if num_labels < 2:
             return None, None
@@ -138,7 +141,7 @@ class ImageProcessor:
         if main_centroid is None:
             return binary_image  # No main object found
 
-        contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(binary_image.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         valid_mask = np.zeros_like(binary_image)
 
         for contour in contours:
@@ -156,7 +159,7 @@ class ImageProcessor:
             if distance <= self.max_distance or frequency < self.noise_threshold:
                 cv2.drawContours(valid_mask, [contour], -1, 255, thickness=cv2.FILLED)
 
-        return cv2.bitwise_and(binary_image, valid_mask)
+        return valid_mask
 
     def _process_directory(self, dir_path: str, files: List[str]) -> Optional[str]:
         """Process all images in a single directory"""
@@ -182,7 +185,7 @@ class ImageProcessor:
                     print(f"  ⚠ Warning: Image {filename} has different dimensions. Skipping.")
                     continue
                     
-                frequency_map += binarized / 255.0
+                frequency_map += binarized / 255.0  # Accumulate as float32
                 valid_images += 1
 
         if valid_images == 0:
@@ -195,63 +198,54 @@ class ImageProcessor:
         if self.log_scale:
             frequency_map = np.log1p(frequency_map)
 
-        # Remove vertical noise if enabled
+        # Remove vertical noise if enabled (works with float32)
         if self.remove_vertical_noise:
             frequency_map = self._remove_vertical_noise(frequency_map)
 
-        # Convert to 8-bit for OpenCV operations
-        frequency_map = cv2.normalize(frequency_map, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
         # Create binary map for object detection
-        _, binary_map = cv2.threshold(frequency_map, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binary_map = cv2.threshold(
+            (frequency_map * 255).astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
 
         # Filter out distant and high-frequency noise
-        filtered_binary = self._filter_distant_objects(binary_map, frequency_map)
+        filtered_mask = self._filter_distant_objects(binary_map, frequency_map)
 
         # Apply mask to original frequency map
-        final_map = cv2.bitwise_and(frequency_map, filtered_binary)
+        final_map = frequency_map * (filtered_mask / 255.0)  # Preserve float32
 
-        # Generate colormap
-        colormap = cv2.applyColorMap(final_map, self.colormap)
-
-        # Save results
+        # Generate colormap (0-255 for saving)
+        colormap = cv2.applyColorMap((final_map * 255).astype(np.uint8), self.colormap)
         output_filename = f"{dir_name}_colormap.png"
         output_path = os.path.join(self.output_root, output_filename)
         cv2.imwrite(output_path, colormap)
-        
         print(f"  ✓ Created colormap: {output_path}")
 
-        # Generate a graph using matplotlib
+        # Generate plot with normalized 0-1 values
         self._plot_frequency_map(final_map, dir_name, output_path)
         return output_path
 
     def _plot_frequency_map(self, frequency_map: np.ndarray, dir_name: str, output_path: str):
-        """Plot the frequency map using matplotlib with title, axes, grid, and legend"""
+        """Plot the frequency map with proper 0-1 normalization"""
         plt.figure(figsize=(10, 8))
         
-        # Plot the frequency map
-        plt.imshow(frequency_map, cmap='viridis', origin='upper')
+        # Ensure data is in 0-1 range
+        normalized_map = cv2.normalize(frequency_map, None, 0, 1, cv2.NORM_MINMAX)
         
-        # Add title
+        # Plot with interpolated colors
+        plot = plt.imshow(normalized_map, cmap='viridis', origin='upper', vmin=0, vmax=1, interpolation='bilinear')
+        
         plt.title(f"Frequency Map: {dir_name}", fontsize=16, pad=20)
-        
-        # Add pixel axes
         plt.xlabel("X Pixel", fontsize=14)
         plt.ylabel("Y Pixel", fontsize=14)
-        
-        # Add grid
         plt.grid(True, linestyle='--', alpha=0.5)
         
-        # Add colorbar as legend
-        cbar = plt.colorbar()
-        cbar.set_label("Frequency", fontsize=14)
+        cbar = plt.colorbar(plot, ticks=np.linspace(0, 1, 6))
+        cbar.set_label("Normalized Frequency (0-1)", fontsize=14)
         
-        # Save the plot
         plot_filename = f"{dir_name}_frequency_plot.png"
         plot_path = os.path.join(self.output_root, plot_filename)
         plt.savefig(plot_path, bbox_inches='tight', dpi=300)
         plt.close()
-        
         print(f"  ✓ Saved frequency plot: {plot_path}")
 
     def _print_progress(self, current: int, total: int, prefix: str = ""):
@@ -297,15 +291,14 @@ if __name__ == "__main__":
         subtracted_root="C:/Users/garci/Desktop/Test1/output_images/grayscale/",
         output_root="C:/Users/garci/Desktop/Test1/output_images",
         adaptive_threshold=True,
-        gaussian_sigma=0.5,
+        gaussian_sigma=1.0,
         colormap=cv2.COLORMAP_VIRIDIS,
         log_scale=True,
         remove_vertical_noise=True,
         median_kernel_size=3,
         morph_kernel_size=5,
-        max_distance=50,  # Objects >50px away are filtered
-        min_object_area=100,  # Objects smaller than 100px are ignored
-        noise_threshold=0.8  # High-frequency threshold for noise
+        max_distance=50,
+        min_object_area=100,
+        noise_threshold=0.8
     )
-
     processor.process_all()
