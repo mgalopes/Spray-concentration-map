@@ -95,7 +95,7 @@ def process_folder(input_folder, background_image_path, output_base_folder, crop
 
 # Example Usage:
 if __name__ == "__main__":
-    input_folder = "C:/Users/garci/Desktop/Test1/selected_img_raw/"
+    input_folder = "C:/Users/garci/Desktop/Test1/selected_img_raw/agua_dest_conv_25C_50bar"
     background_image_path = "subtracao_fundo.png"
     output_base_folder = "output_images"
     crop_coords = (240, 30, 300, 670)
