@@ -30,7 +30,7 @@ class ImageProcessor:
         
         Parameters:
             subtracted_root (str): Root directory containing subtracted images
-            output_root (str): Root directory to save colormaps
+            output_root (str): Root directory to save colormaps and area images
             threshold (int, optional): Fixed threshold value (if not using adaptive)
             adaptive_threshold (bool): Use adaptive Otsu thresholding
             gaussian_sigma (float): Sigma for Gaussian blur preprocessing
@@ -137,7 +137,7 @@ class ImageProcessor:
         # Convert frequency map to 0-1 range
         freq_normalized = cv2.normalize(frequency_map, None, 0, 1, cv2.NORM_MINMAX)
         
-        main_centroid, main_mask = self._find_main_object(binary_image)
+        main_centroid, _ = self._find_main_object(binary_image)
         if main_centroid is None:
             return binary_image  # No main object found
 
@@ -213,11 +213,70 @@ class ImageProcessor:
         # Apply mask to original frequency map
         final_map = frequency_map * (filtered_mask / 255.0)  # Preserve float32
 
+        # === Ratio Calculation Restricted to the Main Object ===
+        # Normalize final_map to 0-1 range
+        normalized_final = cv2.normalize(final_map, None, 0, 1, cv2.NORM_MINMAX)
+        # Retrieve the main object mask from the binary map
+        _, main_mask = self._find_main_object(binary_map)
+        if main_mask is None:
+            print("  ⚠ Warning: Could not determine main object for ratio calculation.")
+            main_object_mask = np.ones_like(normalized_final, dtype=bool)
+        else:
+            main_object_mask = (main_mask > 0)
+        
+        # Total area of the main object (number of pixels)
+        main_object_area = np.count_nonzero(main_object_mask)
+        
+        # First, define the fixed and variable masks based on thresholds:
+        #   - Fixed: pixels with normalized value >= 0.95
+        #   - Variable: pixels with normalized value between 0.05 and 0.95
+        fixed_pixels_mask = main_object_mask & (normalized_final >= 0.95)
+        variable_pixels_mask = main_object_mask & (normalized_final > 0.05) & (normalized_final < 0.95)
+        
+        # There might be pixels in the main object that do not fall into either category.
+        # We add those pixels to the variable area to ensure the partition covers the entire main object.
+        other_pixels_mask = main_object_mask & ~(fixed_pixels_mask | variable_pixels_mask)
+        variable_pixels_mask = variable_pixels_mask | other_pixels_mask
+        
+        fixed_area_count = np.count_nonzero(fixed_pixels_mask)
+        variable_area_count = np.count_nonzero(variable_pixels_mask)
+        total_partition = fixed_area_count + variable_area_count
+        
+        # Sanity check: total_partition should equal main_object_area.
+        if total_partition != main_object_area:
+            print(f"  ⚠ Warning: Partitioned area ({total_partition}) does not equal main object area ({main_object_area})")
+        else:
+            print(f"  ✓ Main object area partitioned correctly: {main_object_area} pixels")
+        
+        ratio = fixed_area_count / variable_area_count if variable_area_count > 0 else float('inf')
+        print(f"  ✓ Fixed Area (>=0.95): {fixed_area_count}, Variable Area (rest): {variable_area_count}, Ratio: {ratio:.4f}")
+        # === End Ratio Calculation ===
+
+        # === Save Fixed and Variable Area Images ===
+        # Create images showing only the fixed or variable areas (all other pixels set to 0)
+        fixed_area_image = np.where(fixed_pixels_mask, normalized_final, 0)
+        variable_area_image = np.where(variable_pixels_mask, normalized_final, 0)
+        
+        # Scale to 0-255 and convert to uint8 for saving
+        fixed_area_save = (fixed_area_image * 255).astype(np.uint8)
+        variable_area_save = (variable_area_image * 255).astype(np.uint8)
+        
+        fixed_area_filename = f"{dir_name}_fixed_area.png"
+        fixed_area_path = os.path.join(self.output_root, fixed_area_filename)
+        variable_area_filename = f"{dir_name}_variable_area.png"
+        variable_area_path = os.path.join(self.output_root, variable_area_filename)
+        
+        cv2.imwrite(fixed_area_path, fixed_area_save)
+        cv2.imwrite(variable_area_path, variable_area_save)
+        print(f"  ✓ Saved fixed area image: {fixed_area_path}")
+        print(f"  ✓ Saved variable area image: {variable_area_path}")
+        # === End Saving Area Images ===
+
         # Generate colormap (0-255 for saving)
-        colormap = cv2.applyColorMap((final_map * 255).astype(np.uint8), self.colormap)
+        colormap_img = cv2.applyColorMap((final_map * 255).astype(np.uint8), self.colormap)
         output_filename = f"{dir_name}_colormap.png"
         output_path = os.path.join(self.output_root, output_filename)
-        cv2.imwrite(output_path, colormap)
+        cv2.imwrite(output_path, colormap_img)
         print(f"  ✓ Created colormap: {output_path}")
 
         # Generate plot with normalized 0-1 values
@@ -289,7 +348,7 @@ class ImageProcessor:
 if __name__ == "__main__":
     processor = ImageProcessor(
         subtracted_root="C:/Users/garci/Desktop/Test1/output_images/grayscale/",
-        output_root="C:/Users/garci/Documents/GitHub/Spray-concentration-map\output_images",
+        output_root="C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_images",
         adaptive_threshold=True,
         gaussian_sigma=1.0,
         colormap=cv2.COLORMAP_VIRIDIS,
