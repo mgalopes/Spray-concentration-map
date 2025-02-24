@@ -24,104 +24,89 @@ def average_images(images):
     average_img = np.zeros_like(images[0], dtype=np.float64)
     for img in images:
         average_img += img / len(images)
-    average_img = np.round(average_img).astype(np.uint8)
-    return average_img
+    return np.round(average_img).astype(np.uint8)
 
 def filter_by_contour_distance(binary_image, max_distance):
     """
-    Given a binary image, identifies the main object (largest connected component),
-    extracts its contour, and then removes (clears) other connected components
-    whose pixels are all farther than max_distance from the nearest contour pixel
-    of the main object.
-    
-    Parameters:
-        binary_image (np.ndarray): Binary image (0/255) with potential objects.
-        max_distance (float): Maximum allowed distance from the main object's frontier.
-    
-    Returns:
-        np.ndarray: Filtered binary image.
+    Filters objects based on their distance from the main object's contour, 
+    preserving internal details while excluding distant artifacts.
     """
     # Detect connected components
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_image, connectivity=8)
     if num_labels < 2:
         return binary_image
 
-    # Identify the main object as the largest component (ignore background, label 0)
+    # Identify the largest component (main object)
     main_label = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
     main_mask = (labels == main_label).astype(np.uint8) * 255
 
-    # Find the contour (fronteira) of the main object
+    # Find contours of the main object
     contours, _ = cv2.findContours(main_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if len(contours) == 0:
+    if not contours:
         return binary_image
-    main_contour = contours[0]
 
-    # Create a mask for the contour by drawing it with thickness 1
+    # Create a mask from the contour
     contour_mask = np.zeros_like(main_mask)
-    cv2.drawContours(contour_mask, [main_contour], -1, 255, thickness=1)
+    cv2.drawContours(contour_mask, contours, -1, 255, thickness=1)
 
-    # Calculate the distance transform: for each pixel, the distance to the contour
-    inverted_contour = cv2.bitwise_not(contour_mask)
-    dist_transform = cv2.distanceTransform(inverted_contour, cv2.DIST_L2, 5)
+    # Compute distance transform from the main object's border
+    dist_transform = cv2.distanceTransform(cv2.bitwise_not(contour_mask), cv2.DIST_L2, 5)
 
-    # Start the filtered mask with the main object already included
+    # Create filtered mask, keeping only the main object and nearby details
     filtered_mask = main_mask.copy()
-
-    # For each component (except background and the main object)
     for label in range(1, num_labels):
         if label == main_label:
             continue
         component_mask = (labels == label).astype(np.uint8) * 255
-        # Get the distances for the pixels in this component
         component_pixels = dist_transform[component_mask == 255]
         if component_pixels.size == 0:
             continue
         min_distance = np.min(component_pixels)
-        # If the minimum distance is less than or equal to the threshold, keep the component
         if min_distance <= max_distance:
             filtered_mask = cv2.bitwise_or(filtered_mask, component_mask)
+
     return filtered_mask
 
 def process_image(image, max_distance):
     """
-    Processes an image:
-      - Converts to grayscale for processing;
-      - Applies Gaussian blur;
-      - Applies Otsu thresholding for binarization;
-      - Removes objects that are farther than max_distance from the main object's contour.
-      - Uses the binary mask to extract the colored region of interest.
+    Processes an image by:
+      - Converting to grayscale,
+      - Applying Gaussian blur,
+      - Binarizing with Otsu thresholding,
+      - Filtering by contour distance,
+      - Applying morphological closing,
+      - Using a soft mask to blend and preserve original colors.
     """
-    # Keep a copy of the original image
     original = image.copy()
-    # Convert to grayscale for processing (if the image is colored)
-    if len(image.shape) == 3:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = image.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image.copy()
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    filtered_mask = filter_by_contour_distance(binary, max_distance)
     
-    # If the original image is colored, apply the mask to preserve colors
+    # Compute the refined mask
+    filtered_mask = filter_by_contour_distance(binary, max_distance)
+
+    # Apply morphological closing to remove small holes
+    kernel = np.ones((5, 5), np.uint8)
+    closed_mask = cv2.morphologyEx(filtered_mask, cv2.MORPH_CLOSE, kernel)
+
+    # Create a soft mask and blend with the original image
+    mask_float = closed_mask.astype(np.float32) / 255.0
     if len(original.shape) == 3:
-        color_filtered = cv2.bitwise_and(original, original, mask=filtered_mask)
-        return color_filtered
-    else:
-        return filtered_mask
+        mask_float = cv2.merge([mask_float, mask_float, mask_float])
+    blended = (original.astype(np.float32) * mask_float).astype(np.uint8)
+
+    return blended
 
 def process_folders(input_folder, output_folder, max_distance=50):
     """
-    Processes all subfolders in the input folder, applies noise reduction to each image,
-    computes average images, and saves results.
-    
-    Parameters:
-        input_folder (str): Root folder with subfolders containing images.
-        output_folder (str): Folder where average images will be saved.
-        max_distance (float): Distance threshold to filter out objects far from the main object's frontier.
+    Processes all subfolders in the input folder:
+      - Applies noise reduction to each image,
+      - Computes average images from processed images,
+      - Saves the results in the output folder.
     """
     os.makedirs(output_folder, exist_ok=True)
 
-    # First, collect all directories that contain valid images
+    # Gather all directories containing valid images
     valid_folders = []
     for root, dirs, files in os.walk(input_folder):
         image_files = [f for f in files if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'))]
@@ -131,7 +116,7 @@ def process_folders(input_folder, output_folder, max_distance=50):
     total_folders = len(valid_folders)
     print(f"Found {total_folders} folders with valid images.\n")
 
-    # Process each valid folder with a progress message
+    # Process each folder and average the resulting images
     for idx, folder_path in enumerate(valid_folders, start=1):
         print(f"Processing folder {idx}/{total_folders}: {folder_path}")
         image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'))]
@@ -145,7 +130,7 @@ def process_folders(input_folder, output_folder, max_distance=50):
 
         if processed_images:
             avg_img = average_images(processed_images)
-            # Generate a unique filename based on the folder hierarchy
+            # Create a unique filename based on the folder structure
             relative_path = os.path.relpath(folder_path, input_folder).replace(os.sep, '_')
             avg_image_filename = f"average_image_{relative_path}.png"
             avg_image_path = os.path.join(output_folder, avg_image_filename)
@@ -157,5 +142,5 @@ def process_folders(input_folder, output_folder, max_distance=50):
 if __name__ == "__main__":
     input_folder = "C:/Users/garci/Desktop/Test1/output_images/adaptative_threshold"
     output_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/average_results"
-    # Adjust max_distance as needed to remove objects far from the main object's frontier
     process_folders(input_folder, output_folder, max_distance=50)
+

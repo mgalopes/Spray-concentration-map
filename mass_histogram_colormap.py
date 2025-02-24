@@ -77,7 +77,7 @@ def generate_histograms_and_line_overlay(colormap_folder, line_height, output_hi
 
 if __name__ == "__main__":
     colormap_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/input_for_histogram"  # Folder containing colormap images
-    line_height = 588 # Row in the image to analyze
+    line_height = 252 # Row in the image to analyze
     output_histogram_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_histograms"  # Folder to save histograms
     output_image_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/output_line_overlay"  # Folder to save images with line overlay
 
