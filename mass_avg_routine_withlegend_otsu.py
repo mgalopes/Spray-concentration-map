@@ -2,7 +2,6 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def load_images_from_folder(folder):
     """
@@ -30,7 +29,7 @@ def average_images(images):
 
 def filter_by_contour_distance(binary_image, max_distance):
     """
-    Filters objects based on their distance from the main object's contour, 
+    Filters objects based on their distance from the main object's contour,
     preserving internal details while excluding distant artifacts.
     """
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_image, connectivity=8)
@@ -89,84 +88,100 @@ def process_image(image, max_distance):
 
     return blended
 
-def plot_and_save_average_image(avg_img, output_path, folder_name):
+def plot_and_save_average_image(avg_img, output_path, folder_name, axis_mode, mm_per_pixel_x, mm_per_pixel_y):
     """
-    Displays the average image in a matplotlib figure that:
+    Displays the average image in a figure that:
       - Preserves the image's original pixel scale (no distortion),
       - Displays with (0,0) at the top-left,
-      - Places a thicker colorbar on a white bar immediately to the right,
-      - Shows dashed grid lines every 50 pixels in X and 100 pixels in Y,
-      - Titles as "Averaged Image: <folder_name>" with extra space below the title,
-      - Labels the colorbar as "Normalized Colour Intensity (0-1)".
+      - Uses mm units if axis_mode=='mm' (with grid lines every 25 mm) or pixels if axis_mode=='pixels'
+      - Places a colorbar to the right whose height exactly matches the image height.
+      
+    The function creates the image axis manually so its size (in inches) equals the image's size (width/dpi, height/dpi).
+    Then it retrieves its position and creates a colorbar axis immediately to its right with the same height.
     """
-    # Convert to grayscale if needed for colormap
+    # Convert to grayscale if needed.
     if len(avg_img.shape) == 3 and avg_img.shape[2] == 3:
         gray_avg = cv2.cvtColor(avg_img, cv2.COLOR_BGR2GRAY)
     else:
         gray_avg = avg_img
 
-    # Normalize the image to [0,1] for display and colorbar range
+    # Normalize image to [0,1]
     norm_data = gray_avg.astype(np.float32) / 255.0
     height, width = norm_data.shape
-
-    # Determine figure size to approximate 1:1 pixel scale
     dpi = 100
-    fig_width_inch = (width / dpi) + 0.8  # extra space for colorbar
-    fig_height_inch = height / dpi
-    fig = plt.figure(figsize=(fig_width_inch, fig_height_inch), dpi=dpi)
 
-    ax_img = fig.add_subplot(111)
-    # Set extent so that x=0...width and y=0 is at the top, y=height at the bottom.
-    im = ax_img.imshow(
-        norm_data,
-        cmap='viridis',
-        origin='upper',  
-        vmin=0, vmax=1,
-        extent=[0, width, height, 0],  # Top edge is y=0, bottom edge is y=height.
-        aspect='equal'
-    )
+    if axis_mode == "mm":
+        x_max = width * mm_per_pixel_x
+        y_max = height * mm_per_pixel_y
+        extent = [0, x_max, y_max, 0]
+        tick_spacing = 25  # every 25 mm
+        xticks = np.arange(0, x_max, tick_spacing)
+        yticks = np.arange(0, y_max, tick_spacing)
+        xlabel = "X (mm)"
+        ylabel = "Y (mm)"
+    else:
+        x_max = width
+        y_max = height
+        extent = [0, x_max, y_max, 0]
+        xticks = np.arange(0, x_max, 50)   # every 50 pixels in X
+        yticks = np.arange(0, y_max, 100)  # every 100 pixels in Y
+        xlabel = "X Pixel"
+        ylabel = "Y Pixel"
 
-    # Add title with extra padding (space line) below the title.
-    ax_img.set_title(f"Averaged Image: {folder_name}", pad=20)
-    ax_img.set_xlabel("X Pixel")
-    ax_img.set_ylabel("Y Pixel")
+    # Compute image size in inches (1:1 pixel scale)
+    image_width_inch = width / dpi
+    image_height_inch = height / dpi
+
+    # Reserve a fixed width for the colorbar (in inches)
+    colorbar_width_inch = 0.5
+    total_fig_width = image_width_inch + colorbar_width_inch
+
+    # Create figure with the total width
+    fig = plt.figure(figsize=(total_fig_width, image_height_inch), dpi=dpi)
+    # Create the image axis with exactly the image size:
+    ax_img = fig.add_axes([0, 0, image_width_inch / total_fig_width, 1])
     
-    # Set grid ticks: every 50 pixels in x and every 100 pixels in y.
-    ax_img.set_xticks(np.arange(0, width+1, 50))
-    ax_img.set_yticks(np.arange(0, height+1, 100))
+    im = ax_img.imshow(norm_data, cmap='viridis', origin='upper', vmin=0, vmax=1,
+                       extent=extent, aspect='equal')
+    ax_img.set_title(f"Averaged Image: {folder_name}", pad=20)
+    ax_img.set_xlabel(xlabel)
+    ax_img.set_ylabel(ylabel)
+    ax_img.set_xticks(xticks)
+    ax_img.set_yticks(yticks)
     ax_img.grid(True, which='both', linestyle='--', color='white', linewidth=0.5)
 
-    # Create a divider for the colorbar and append an axis on the right.
-    divider = make_axes_locatable(ax_img)
-    # Double the colorbar width from 6% to 12%
-    cax = divider.append_axes("right", size="12%", pad=0.1)
-    cax.set_facecolor('white')
-    cbar = plt.colorbar(im, cax=cax)
+    # Get the position of the image axis in figure coordinates
+    pos = ax_img.get_position()
+    # Create a colorbar axis immediately to the right of the image axis, with the same height
+    cb_pad = 0.01  # small padding in figure fraction
+    cb_width = 0.05  # width in figure fraction (you can adjust if needed)
+    ax_cb = fig.add_axes([pos.x1 + cb_pad, pos.y0, cb_width, pos.height])
+    ax_cb.set_facecolor('white')
+    cbar = fig.colorbar(im, cax=ax_cb)
     cbar.set_label("Normalized Colour Intensity (0-1)")
 
     plt.savefig(output_path, bbox_inches='tight', dpi=dpi)
     plt.close(fig)
 
-def process_folders(input_folder, output_folder, max_distance=50):
+def process_folders(input_folder, output_folder, max_distance=50, axis_mode="pixels", mm_per_pixel_x=1.0, mm_per_pixel_y=1.0):
     """
     Processes all subfolders in the input folder:
       - Applies noise reduction to each image,
       - Computes average images from processed images,
-      - Saves the raw average image and a corresponding matplotlib graph with a colorbar.
+      - Saves the raw average image and a corresponding graph with a colorbar.
+      
+    axis_mode determines if the graph uses "mm" or "pixels". For "mm" mode, mm_per_pixel_x and mm_per_pixel_y
+    convert pixel dimensions to millimeters.
     """
     os.makedirs(output_folder, exist_ok=True)
-
-    # Gather all directories containing valid images
     valid_folders = []
     for root, dirs, files in os.walk(input_folder):
         image_files = [f for f in files if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'))]
         if image_files:
             valid_folders.append(root)
-
     total_folders = len(valid_folders)
     print(f"Found {total_folders} folders with valid images.\n")
 
-    # Process each folder and compute the average image
     for idx, folder_path in enumerate(valid_folders, start=1):
         print(f"Processing folder {idx}/{total_folders}: {folder_path}")
         image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff'))]
@@ -177,26 +192,35 @@ def process_folders(input_folder, output_folder, max_distance=50):
             if img is not None:
                 proc = process_image(img, max_distance)
                 processed_images.append(proc)
-
         if processed_images:
             avg_img = average_images(processed_images)
-            # Create unique filenames based on folder structure
             relative_path = os.path.relpath(folder_path, input_folder).replace(os.sep, '_')
             raw_filename = f"average_image_{relative_path}.png"
             graph_filename = f"average_image_graph_{relative_path}.png"
             raw_path = os.path.join(output_folder, raw_filename)
             graph_path = os.path.join(output_folder, graph_filename)
-            
-            # Save the raw average image using OpenCV
             cv2.imwrite(raw_path, avg_img)
-            # Save the matplotlib graph preserving the original scale and adding the thicker colorbar
-            plot_and_save_average_image(avg_img, graph_path, relative_path)
+            plot_and_save_average_image(avg_img, graph_path, relative_path, axis_mode, mm_per_pixel_x, mm_per_pixel_y)
             print(f"  --> Raw average image saved to {raw_path}")
             print(f"  --> Graph with color scheme saved to {graph_path}\n")
         else:
             print(f"  --> No valid images found in {folder_path}\n")
 
 if __name__ == "__main__":
+    axis_choice = input("Do you want the axis in mm or in pixels? Enter 'mm' or 'pixels': ").strip().lower()
+    if axis_choice == "mm":
+        try:
+            mm_per_pixel_x = float(input("Enter mm per pixel for x: ").strip())
+            mm_per_pixel_y = float(input("Enter mm per pixel for y: ").strip())
+        except ValueError:
+            print("Invalid input for mm conversion. Using default 1.0 mm per pixel.")
+            mm_per_pixel_x = 1.0
+            mm_per_pixel_y = 1.0
+    else:
+        mm_per_pixel_x = 1.0
+        mm_per_pixel_y = 1.0
+
     input_folder = "C:/Users/garci/Desktop/Test1/output_images/adaptative_threshold"
     output_folder = "C:/Users/garci/Documents/GitHub/Spray-concentration-map/average_results"
-    process_folders(input_folder, output_folder, max_distance=50)
+    process_folders(input_folder, output_folder, max_distance=50,
+                    axis_mode=axis_choice, mm_per_pixel_x=mm_per_pixel_x, mm_per_pixel_y=mm_per_pixel_y)
