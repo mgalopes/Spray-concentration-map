@@ -2,6 +2,8 @@ import cv2
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize
 
 ###########################
 # GLOBAL THRESHOLD CALCULATION
@@ -146,9 +148,6 @@ def process_image(image, max_distance, thresh_min, thresh_max):
 ###########################
 # PLOTTING & SAVING FUNCTIONS
 ###########################
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
-
 def plot_and_save_average_image(avg_img, output_path, folder_name, axis_mode, mm_per_pixel_x, mm_per_pixel_y):
     """
     Displays the raw averaged image (which is already in jet-colormap) in a figure.
@@ -159,15 +158,14 @@ def plot_and_save_average_image(avg_img, output_path, folder_name, axis_mode, mm
     
     The image is normalized (divided by 255) for plotting so that its intensities are scaled to [0, 1].
     """
-    # Use the averaged image directly (assuming it is in jet scheme) and normalize for plotting.
+    # Convert BGR to RGB if the image is color
     if avg_img.ndim == 3 and avg_img.shape[2] == 3:
-        image_to_show = avg_img.copy()
+        image_to_show = cv2.cvtColor(avg_img.copy(), cv2.COLOR_BGR2RGB)
     else:
         image_to_show = avg_img.copy()
     
     # Normalize the image for plotting: convert intensities to [0,1]
-    norm_data = (255 - image_to_show).astype(np.float32) / 255.0
-
+    norm_data = image_to_show.astype(np.float32) / 255.0
     
     # Fix the colorbar range to 0-1
     vmin = 0.0
@@ -202,7 +200,8 @@ def plot_and_save_average_image(avg_img, output_path, folder_name, axis_mode, mm
     fig = plt.figure(figsize=(total_fig_width, image_height_inch), dpi=dpi)
     ax_img = fig.add_axes([0, 0, image_width_inch / total_fig_width, 1])
     
-    im = ax_img.imshow(norm_data, cmap='jet', origin='upper', vmin=vmin, vmax=vmax,
+    # Display the RGB image without applying a colormap
+    im = ax_img.imshow(norm_data, origin='upper', vmin=vmin, vmax=vmax,
                        extent=extent, aspect='equal')
     ax_img.set_title(f"Averaged Image: {folder_name}", pad=20)
     ax_img.set_xlabel(xlabel)
@@ -225,6 +224,7 @@ def plot_and_save_average_image(avg_img, output_path, folder_name, axis_mode, mm
     
     plt.savefig(output_path, bbox_inches='tight', dpi=dpi)
     plt.close(fig)
+
 
 ###########################
 # FOLDER PROCESSING
