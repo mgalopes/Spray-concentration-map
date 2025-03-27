@@ -27,14 +27,17 @@ nozzle_translation = {"Divergente": "Divergent", "Convergente": "Convergent"}
 def plot_from_xlsx(file_path):
     # Read Excel file
     df = pd.read_excel(file_path)
-
+    
     # Replace Portuguese terms with English equivalents
     df['Fluid'] = df['Fluid'].replace(fuel_translation)
     df['Nozzle'] = df['Nozzle'].replace(nozzle_translation)
-
-    # Compute global min and max for 'Ratio' and add a 0.2 margin
-    y_min = 0.4 #df["Ratio"].min() - 0.02
-    y_max = 0.7 #df["Ratio"].max() + 0.02
+    
+    # Filter to include only Divergent nozzles
+    df = df[df['Nozzle'] == "Divergent"]
+    
+    # Compute global min and max for 'Ratio' and add a margin
+    y_min = 0.3  # or use df["Ratio"].min() - 0.02
+    y_max = 0.8  # or use df["Ratio"].max() + 0.02
 
     # Generate the legend entry
     df["Legend"] = df["Fluid"] + " " + df["Nozzle"] + " " + df["Temperature [ºC]"].astype(str)
